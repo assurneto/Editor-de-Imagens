@@ -77,7 +77,8 @@ const App: React.FC = () => {
                  setError('Sua chave de API parece ser inválida ou a cota gratuita requer autenticação. Por favor, selecione uma chave de API válida para continuar.');
                  setShowKeyModal(true);
             } else {
-                setError('Falha ao gerar a imagem. Tente novamente.');
+                const errorMessage = err instanceof Error ? err.message : 'Ocorreu um erro desconhecido.';
+                setError(`Falha ao gerar a imagem: ${errorMessage}`);
             }
             console.error(err);
         } finally {
