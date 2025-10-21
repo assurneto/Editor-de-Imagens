@@ -8,19 +8,6 @@ import { generateRestorePrompt } from './services/promptService';
 import { Mode, CreateFunction, EditFunction, ArtisticStyle, AspectRatio } from './types';
 import type { ImageFile } from './types';
 
-// FIX: Defined AIStudio interface to resolve TypeScript error about subsequent property declarations.
-interface AIStudio {
-    hasSelectedApiKey: () => Promise<boolean>;
-    openSelectKey: () => Promise<void>;
-}
-
-declare global {
-    interface Window {
-        aistudio?: AIStudio;
-    }
-}
-
-
 const App: React.FC = () => {
     const [mode, setMode] = useState<Mode>(Mode.CREATE);
     const [prompt, setPrompt] = useState<string>('');
