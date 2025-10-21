@@ -1,5 +1,11 @@
-import { Mode, CreateFunction, EditFunction, ArtisticStyle, AspectRatio } from '../types';
+import { GoogleGenAI, Modality } from '@google/genai';
+import { Mode, CreateFunction, EditFunction, ArtisticStyle, AspectRatio, styleOptions } from '../types';
 import type { ImageFile } from '../types';
+
+// Initialize the Google GenAI client
+// The API key is provided by the environment.
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
 
 interface GenerateImageParams {
     prompt: string;
@@ -12,44 +18,107 @@ interface GenerateImageParams {
     image2: ImageFile | null;
 }
 
-const getDimensions = (ratio: AspectRatio): { width: number, height: number } => {
-    const base = 1024;
-    switch (ratio) {
-        case AspectRatio.LANDSCAPE: // 16:9
-            return { width: base, height: Math.round(base * 9 / 16) }; // 1024x576
-        case AspectRatio.PORTRAIT: // 9:16
-            return { width: Math.round(base * 9 / 16), height: base }; // 576x1024
-        case AspectRatio.WIDE: // 4:3
-            return { width: base, height: Math.round(base * 3 / 4) }; // 1024x768
-        case AspectRatio.TALL: // 3:4
-            return { width: Math.round(base * 3 / 4), height: base }; // 768x1024
-        case AspectRatio.SQUARE: // 1:1
-        default:
-            return { width: base, height: base }; // 1024x1024
+/**
+ * Converts a data URL string into an object suitable for the Gemini API's inlineData.
+ * @param dataUrl The data URL (e.g., "data:image/png;base64,...")
+ * @returns An object with an inlineData property.
+ */
+const dataUrlToInlineData = (dataUrl: string) => {
+    const match = dataUrl.match(/^data:(.+);base64,(.+)$/);
+    if (!match) {
+        console.error('Invalid data URL format:', dataUrl.substring(0, 50));
+        throw new Error('Formato de URL de dados inválido. Não foi possível processar a imagem.');
     }
-}
+    const mimeType = match[1];
+    const data = match[2];
+    return { inlineData: { data, mimeType } };
+};
 
-export const generateImage = (params: GenerateImageParams): Promise<string> => {
-    console.log('Generating image with params:', params);
+
+/**
+ * Generates or edits an image using the Google Gemini API.
+ * @param params The parameters for image generation/editing.
+ * @returns A promise that resolves to a data URL (base64) of the generated image.
+ */
+export const generateImage = async (params: GenerateImageParams): Promise<string> => {
+    console.log('Generating image with real API, params:', params);
     
-    if (params.mode === Mode.EDIT && params.editFunction === EditFunction.RESTORE && params.image1) {
-        return new Promise((resolve) => {
-            setTimeout(() => {
-                // In a real scenario, an AI would process params.image1 to restore it.
-                // For this mock, we simply return the uploaded image's URL to demonstrate
-                // that the correct image is being processed.
-                resolve(params.image1!.url);
-            }, 1500); // Simulate processing delay
-        });
-    }
+    try {
+        if (params.mode === Mode.CREATE) {
+            const styleName = styleOptions.find(s => s.id === params.selectedStyle)?.name || '';
+            
+            // For "Free" mode, just use the prompt. For "Style" mode, prepend the style.
+            const finalPrompt = params.createFunction === CreateFunction.STYLE && styleName
+                ? `Uma imagem no estilo de ${styleName.toLowerCase()}: ${params.prompt}`
+                : params.prompt;
 
-    return new Promise((resolve) => {
-        setTimeout(() => {
-            const { width, height } = getDimensions(params.aspectRatio);
-            // Use a more reliable placeholder service.
-            const encodedPrompt = encodeURIComponent(params.prompt || "Image generation");
-            const imageUrl = `https://placehold.co/${width}x${height}/805AD5/FFFFFF?text=${encodedPrompt}`;
-            resolve(imageUrl);
-        }, 2500); // Simulate network delay
-    });
+            if (!finalPrompt.trim()) {
+                throw new Error("O prompt não pode estar vazio.");
+            }
+
+            // Use Imagen for high-quality image creation.
+            const response = await ai.models.generateImages({
+                model: 'imagen-4.0-generate-001',
+                prompt: finalPrompt,
+                config: {
+                    numberOfImages: 1,
+                    aspectRatio: params.aspectRatio,
+                    outputMimeType: 'image/jpeg', // Request JPEG for consistency
+                },
+            });
+
+            if (!response.generatedImages || response.generatedImages.length === 0) {
+                throw new Error('A API não retornou nenhuma imagem.');
+            }
+
+            const base64ImageBytes = response.generatedImages[0].image.imageBytes;
+            return `data:image/jpeg;base64,${base64ImageBytes}`;
+        } else { // Mode.EDIT
+            if (!params.image1) {
+                throw new Error('A edição de imagem requer uma imagem de base.');
+            }
+
+            const parts: any[] = [];
+            
+            // Add the base image(s)
+            parts.push(dataUrlToInlineData(params.image1.url));
+            if (params.editFunction === EditFunction.COMPOSE && params.image2) {
+                parts.push(dataUrlToInlineData(params.image2.url));
+            }
+            
+            // Add the text prompt
+            if (params.prompt) {
+                parts.push({ text: params.prompt });
+            }
+
+            // Use gemini-flash-image for image editing tasks
+            const response = await ai.models.generateContent({
+                model: 'gemini-2.5-flash-image',
+                contents: { parts },
+                config: {
+                    responseModalities: [Modality.IMAGE],
+                },
+            });
+
+            if (!response.candidates || response.candidates.length === 0 || !response.candidates[0].content.parts) {
+                throw new Error("A API não retornou um candidato de imagem válido.");
+            }
+
+            // Find the image part in the response
+            for (const part of response.candidates[0].content.parts) {
+                if (part.inlineData) {
+                    const base64ImageBytes = part.inlineData.data;
+                    const mimeType = part.inlineData.mimeType;
+                    return `data:${mimeType};base64,${base64ImageBytes}`;
+                }
+            }
+
+            throw new Error("A API retornou uma resposta, mas não continha dados de imagem.");
+        }
+    } catch (error) {
+        console.error("Error generating image with Gemini API:", error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        // Provide a more user-friendly error message
+        throw new Error(`A API de IA falhou: ${errorMessage}. Verifique seu prompt e tente novamente.`);
+    }
 };
