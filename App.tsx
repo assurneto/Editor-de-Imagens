@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { LeftPanel } from './components/LeftPanel';
 import { RightPanel } from './components/RightPanel';
 import { MobileModal } from './components/MobileModal';
@@ -37,28 +37,7 @@ const App: React.FC = () => {
         grayscale: 0,
     });
     const [rotation, setRotation] = useState(0);
-    const [isKeySelected, setIsKeySelected] = useState<boolean>(false);
-
-    useEffect(() => {
-        const checkApiKey = async () => {
-            if (window.aistudio) {
-                try {
-                    const hasKey = await window.aistudio.hasSelectedApiKey();
-                    setIsKeySelected(hasKey);
-                } catch (e) {
-                    console.error("Error checking for API key:", e);
-                    setIsKeySelected(false);
-                }
-            }
-        };
-
-        if (window.aistudio) {
-            checkApiKey();
-        } else {
-            // Fallback for environments where aistudio is loaded async
-            window.addEventListener('aistudio-host-ready', () => checkApiKey());
-        }
-    }, []);
+    const [showKeyModal, setShowKeyModal] = useState<boolean>(false);
 
     const handleGenerateImage = useCallback(async (promptOverride?: string) => {
         setIsLoading(true);
@@ -83,7 +62,6 @@ const App: React.FC = () => {
             });
             setGeneratedImage(result);
             
-            // Reset editing states for the new image
             setImageFilters({ brightness: 100, contrast: 100, sepia: 0, grayscale: 0 });
             setRotation(0);
 
@@ -96,8 +74,8 @@ const App: React.FC = () => {
             }
         } catch (err) {
             if (err instanceof Error && (err.message.includes('API key not valid') || err.message.includes('Requested entity was not found'))) {
-                 setError('Sua chave de API parece ser inválida. Por favor, selecione uma chave de API válida para continuar.');
-                 setIsKeySelected(false);
+                 setError('Sua chave de API parece ser inválida ou a cota gratuita requer autenticação. Por favor, selecione uma chave de API válida para continuar.');
+                 setShowKeyModal(true);
             } else {
                 setError('Falha ao gerar a imagem. Tente novamente.');
             }
@@ -156,7 +134,7 @@ const App: React.FC = () => {
             setShowTwoImagesView(true);
         } else {
             setShowTwoImagesView(false);
-            setImage2(null); // Clear second image if not in compose mode
+            setImage2(null);
         }
     };
     
@@ -179,34 +157,55 @@ const App: React.FC = () => {
     const canUndo = useMemo(() => currentHistoryIndex > 0, [currentHistoryIndex]);
     const canRedo = useMemo(() => currentHistoryIndex < history.length - 1, [currentHistoryIndex, history.length]);
 
+    const renderKeyModal = () => {
+        if (!showKeyModal) return null;
+        
+        return (
+            <div className="absolute inset-0 bg-gray-900 bg-opacity-95 flex items-center justify-center z-50 p-4">
+                <div className="text-center bg-gray-800 p-8 rounded-2xl shadow-xl max-w-lg w-full">
+                    <h2 className="text-2xl font-bold mb-4 text-white">Chave de API do Gemini Necessária</h2>
+                    <p className="text-gray-400 mb-6">
+                        {error || 'Para continuar, selecione a chave de API que você criou no Google AI Studio.'}
+                    </p>
+                    <button
+                        onClick={async () => {
+                            if (window.aistudio) {
+                                try {
+                                    await window.aistudio.openSelectKey();
+                                    const hasKey = await window.aistudio.hasSelectedApiKey();
+                                    if (hasKey) {
+                                        setShowKeyModal(false);
+                                        setError(null);
+                                        // User can now retry the generation.
+                                    }
+                                } catch (e) {
+                                    console.error("Error opening key selection:", e);
+                                    setError("Não foi possível abrir a seleção de chave de API.");
+                                }
+                            }
+                        }}
+                        className="w-full bg-purple-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-purple-700 transition-all duration-300 transform hover:scale-105"
+                    >
+                        Selecionar Chave de API
+                    </button>
+                    <button
+                        onClick={() => setShowKeyModal(false)}
+                        className="w-full mt-3 text-gray-400 font-semibold py-2 px-4 rounded-lg hover:bg-gray-700 transition-colors"
+                    >
+                       Cancelar
+                    </button>
+                    <p className="text-xs text-gray-500 mt-4">
+                        O uso da API do Gemini pode incorrer em custos. <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noopener noreferrer" className="underline hover:text-purple-400">Saiba mais sobre preços</a>.
+                    </p>
+                </div>
+            </div>
+        );
+    };
+
     return (
         <div className="container mx-auto p-4 md:p-6 lg:p-8 min-h-screen relative">
-            {!isKeySelected && (
-                 <div className="absolute inset-0 bg-gray-900 bg-opacity-95 flex items-center justify-center z-50 p-4">
-                    <div className="text-center bg-gray-800 p-8 rounded-2xl shadow-xl max-w-lg w-full">
-                        <h2 className="text-2xl font-bold mb-4 text-white">Chave de API do Gemini Necessária</h2>
-                        <p className="text-gray-400 mb-6">
-                            Para gerar e editar imagens com IA, este aplicativo precisa usar uma chave de API do Google Gemini.
-                            Por favor, selecione sua chave para continuar.
-                        </p>
-                        <button
-                            onClick={async () => {
-                                if (window.aistudio) {
-                                    await window.aistudio.openSelectKey();
-                                    setIsKeySelected(true);
-                                }
-                            }}
-                            className="w-full bg-purple-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-purple-700 transition-all duration-300 transform hover:scale-105"
-                        >
-                            Selecionar Chave de API
-                        </button>
-                        <p className="text-xs text-gray-500 mt-4">
-                            O uso da API do Gemini pode incorrer em custos. <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noopener noreferrer" className="underline hover:text-purple-400">Saiba mais sobre preços</a>.
-                        </p>
-                    </div>
-                </div>
-            )}
-            <div className={`flex flex-col md:flex-row gap-8 ${!isKeySelected ? 'blur-md pointer-events-none' : ''}`}>
+            {renderKeyModal()}
+            <div className="flex flex-col md:flex-row gap-8">
                 <LeftPanel
                     mode={mode}
                     onModeChange={handleModeChange}
