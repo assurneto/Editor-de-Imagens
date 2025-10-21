@@ -1,11 +1,7 @@
+
 import { GoogleGenAI, Modality } from '@google/genai';
 import { Mode, CreateFunction, EditFunction, ArtisticStyle, AspectRatio, styleOptions } from '../types';
 import type { ImageFile } from '../types';
-
-// Initialize the Google GenAI client
-// The API key is provided by the environment.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 
 interface GenerateImageParams {
     prompt: string;
@@ -41,6 +37,9 @@ const dataUrlToInlineData = (dataUrl: string) => {
  * @returns A promise that resolves to a data URL (base64) of the generated image.
  */
 export const generateImage = async (params: GenerateImageParams): Promise<string> => {
+    // Initialize the Google GenAI client inside the function to ensure the latest API key is used.
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    
     console.log('Generating image with real API, params:', params);
     
     try {
@@ -117,8 +116,8 @@ export const generateImage = async (params: GenerateImageParams): Promise<string
         }
     } catch (error) {
         console.error("Error generating image with Gemini API:", error);
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        // Provide a more user-friendly error message
-        throw new Error(`A API de IA falhou: ${errorMessage}. Verifique seu prompt e tente novamente.`);
+        // Re-throw the original error so it can be handled by the UI component,
+        // specifically to catch API key errors.
+        throw error;
     }
 };
