@@ -38,13 +38,15 @@ const App: React.FC = () => {
     });
     const [rotation, setRotation] = useState(0);
 
-    const handleGenerateImage = useCallback(async () => {
+    const handleGenerateImage = useCallback(async (promptOverride?: string) => {
         setIsLoading(true);
         setError(null);
 
+        const promptToUse = promptOverride ?? prompt;
+
         const finalPrompt = (mode === Mode.EDIT && activeEditFunction === EditFunction.RESTORE)
             ? generateRestorePrompt(colorize)
-            : prompt;
+            : promptToUse;
 
         try {
             const result = await apiGenerateImage({

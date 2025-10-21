@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { FunctionCard } from './FunctionCard';
 import { UploadArea } from './UploadArea';
@@ -24,7 +25,7 @@ interface LeftPanelProps {
     setImage1: (file: ImageFile | null) => void;
     image2: ImageFile | null;
     setImage2: (file: ImageFile | null) => void;
-    onGenerate: () => void;
+    onGenerate: (promptOverride?: string) => void;
     isLoading: boolean;
     showTwoImagesView: boolean;
     setShowTwoImagesView: (show: boolean) => void;
@@ -74,6 +75,23 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
             setIsGeneratingPrompt(false);
         }
     };
+    
+    const handleGeneratePromptAndImage = async () => {
+        if (!promptIdea.trim() || isLoading) return;
+        setIsGeneratingPrompt(true);
+        setPromptGeneratedSuccess(false);
+        try {
+            const professionalPrompt = await generateProfessionalPrompt(promptIdea);
+            onPromptChange(professionalPrompt);
+            onGenerate(professionalPrompt); // Generate image immediately with the new prompt
+            setPromptGeneratedSuccess(true);
+            setTimeout(() => setPromptGeneratedSuccess(false), 3000);
+        } catch (error) {
+            console.error("Failed to generate prompt and image:", error);
+        } finally {
+            setIsGeneratingPrompt(false);
+        }
+    };
 
     const isRestoreMode = mode === Mode.EDIT && activeEditFunction === EditFunction.RESTORE;
 
@@ -115,6 +133,13 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
                     value={prompt}
                     onChange={(e) => onPromptChange(e.target.value)}
                 />
+                 <button
+                    onClick={() => onGenerate()}
+                    disabled={isLoading || !prompt.trim()}
+                    className="mt-3 w-full bg-purple-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-purple-600 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    Gerar com esta ideia
+                </button>
             </div>
             
             <div className={`prompt-generator-section bg-gray-700 p-4 rounded-lg ${isRestoreMode ? 'hidden' : ''}`}>
@@ -130,7 +155,7 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
                 <button
                     onClick={handleGeneratePrompt}
                     disabled={isGeneratingPrompt || !promptIdea.trim()}
-                    className="mt-3 w-full bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center hover:bg-indigo-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="mt-3 w-full bg-gray-600 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center hover:bg-gray-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {isGeneratingPrompt ? (
                         <>
@@ -138,7 +163,21 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
                             <span>Criando...</span>
                         </>
                     ) : (
-                        <span>🪄 Gerar Prompt Profissional</span>
+                        <span>🪄 Apenas Gerar Prompt</span>
+                    )}
+                </button>
+                 <button
+                    onClick={handleGeneratePromptAndImage}
+                    disabled={isGeneratingPrompt || !promptIdea.trim() || isLoading}
+                    className="mt-2 w-full bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center hover:bg-indigo-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    {isGeneratingPrompt ? (
+                         <>
+                            <div className="spinner w-5 h-5 border-2 border-t-transparent border-white rounded-full animate-spin mr-2"></div>
+                            <span>Aprimorando...</span>
+                        </>
+                    ) : (
+                        <span>🚀 Aprimorar e Gerar</span>
                     )}
                 </button>
                 {promptGeneratedSuccess && (
@@ -259,7 +298,7 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
             <button
                 id="generateBtn"
                 className="generate-btn w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center hover:from-purple-700 hover:to-indigo-700 transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-                onClick={onGenerate}
+                onClick={() => onGenerate()}
                 disabled={isLoading || (!prompt && !isRestoreMode)}
             >
                 {isLoading ? (
@@ -268,7 +307,7 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
                         <span className="btn-text">Gerando...</span>
                     </>
                 ) : (
-                    <span className="btn-text">🚀 Gerar Imagem</span>
+                    <span className="btn-text">🚀 Gerar Imagem Principal</span>
                 )}
             </button>
         </div>
