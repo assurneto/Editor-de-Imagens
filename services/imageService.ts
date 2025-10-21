@@ -1,4 +1,3 @@
-
 import { Mode, CreateFunction, EditFunction, ArtisticStyle, AspectRatio } from '../types';
 import type { ImageFile } from '../types';
 
@@ -33,11 +32,23 @@ const getDimensions = (ratio: AspectRatio): { width: number, height: number } =>
 export const generateImage = (params: GenerateImageParams): Promise<string> => {
     console.log('Generating image with params:', params);
     
+    if (params.mode === Mode.EDIT && params.editFunction === EditFunction.RESTORE && params.image1) {
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                // In a real scenario, an AI would process params.image1 to restore it.
+                // For this mock, we simply return the uploaded image's URL to demonstrate
+                // that the correct image is being processed.
+                resolve(params.image1!.url);
+            }, 1500); // Simulate processing delay
+        });
+    }
+
     return new Promise((resolve) => {
         setTimeout(() => {
             const { width, height } = getDimensions(params.aspectRatio);
-            const randomId = Math.floor(Math.random() * 1000);
-            const imageUrl = `https://picsum.photos/id/${randomId}/${width}/${height}`;
+            // Use a more reliable placeholder service.
+            const encodedPrompt = encodeURIComponent(params.prompt || "Image generation");
+            const imageUrl = `https://placehold.co/${width}x${height}/805AD5/FFFFFF?text=${encodedPrompt}`;
             resolve(imageUrl);
         }, 2500); // Simulate network delay
     });

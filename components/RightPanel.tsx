@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 type ImageFilters = {
@@ -26,7 +25,7 @@ interface RightPanelProps {
 const downloadImage = (imageUrl: string, rotation: number, filters: ImageFilters) => {
     const image = new Image();
     image.crossOrigin = 'anonymous'; // Required for tainted canvas
-    image.src = imageUrl;
+    
     image.onload = () => {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
@@ -55,6 +54,7 @@ const downloadImage = (imageUrl: string, rotation: number, filters: ImageFilters
         link.click();
         document.body.removeChild(link);
     };
+
     image.onerror = () => {
         // Fallback for CORS issues or other errors: open in new tab
         console.error("Could not load image on canvas, falling back to direct link.");
@@ -66,6 +66,8 @@ const downloadImage = (imageUrl: string, rotation: number, filters: ImageFilters
         link.click();
         document.body.removeChild(link);
     };
+
+    image.src = imageUrl; // Set src after handlers are defined
 };
 
 export const RightPanel: React.FC<RightPanelProps> = ({ 
@@ -91,7 +93,7 @@ export const RightPanel: React.FC<RightPanelProps> = ({
     };
 
     return (
-        <div className="right-panel md:w-2/3 lg:w-3/4 flex-grow flex items-center justify-center bg-gray-800 p-6 rounded-2xl shadow-lg min-h-[60vh] md:min-h-0">
+        <div className="right-panel md:w-3/5 lg:w-2/3 flex-grow flex items-center justify-center bg-gray-800 p-6 rounded-2xl shadow-lg min-h-[60vh] md:min-h-0">
             {isLoading && (
                 <div id="loadingContainer" className="loading-container text-center">
                     <div className="loading-spinner w-16 h-16 border-4 border-t-transparent border-purple-500 rounded-full animate-spin mx-auto"></div>

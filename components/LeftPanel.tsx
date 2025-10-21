@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { FunctionCard } from './FunctionCard';
 import { UploadArea } from './UploadArea';
@@ -101,7 +100,7 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
     };
 
     return (
-        <div className="left-panel md:w-1/3 lg:w-1/4 bg-gray-800 p-6 rounded-2xl shadow-lg flex flex-col gap-6 h-fit">
+        <div className="left-panel md:w-2/5 lg:w-1/3 bg-gray-800 p-6 rounded-2xl shadow-lg flex flex-col gap-6 h-fit">
             <header>
                 <h1 className="panel-title text-3xl font-bold text-white">🎨 AI Image Studio</h1>
                 <p className="panel-subtitle text-gray-400 mt-1">Gerador profissional de imagens</p>
@@ -181,7 +180,7 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
                             ))}
                         </div>
                     ) : (
-                         <div id="editFunctions" className="functions-grid grid grid-cols-2 gap-3">
+                         <div id="editFunctions" className="functions-grid grid grid-cols-3 gap-3">
                              {editFunctions.map(f => (
                                 <FunctionCard 
                                     key={f.id}
