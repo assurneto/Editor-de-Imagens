@@ -1,12 +1,49 @@
 /**
  * @fileoverview This service centralizes all authentication logic.
  * It provides a consistent interface for logging in, logging out, and checking
- * authentication status, while handling the differences between a local
+ * authentication status, while handling the differences between a local/preview
  * development environment and the production AI Studio environment.
  */
 
-// A simple check to determine if we are in a local development environment.
-const isDevelopment = window.location.hostname === 'localhost';
+const AISTUDIO_PROBE_TIMEOUT = 2000; // Wait 2 seconds for the aistudio object to appear.
+
+/**
+ * Asynchronously determines if the app is running in the production AI Studio environment.
+ * It does this by "probing" for the existence of the `window.aistudio` object, which is
+ * injected by the production environment. If the object doesn't appear within the timeout,
+ * it assumes a development/preview environment.
+ * @returns {Promise<boolean>} A promise that resolves to true if in production, false otherwise.
+ */
+const checkIsProduction = (): Promise<boolean> => {
+    return new Promise((resolve) => {
+        // If it's already there on initial check, we're in production.
+        if (window.aistudio) {
+            return resolve(true);
+        }
+
+        const startTime = Date.now();
+        const intervalId = setInterval(() => {
+            if (window.aistudio) {
+                clearInterval(intervalId);
+                resolve(true); // Found it, we're in production.
+            } else if (Date.now() - startTime > AISTUDIO_PROBE_TIMEOUT) {
+                clearInterval(intervalId);
+                // Timed out, we're in a dev/preview environment.
+                resolve(false);
+            }
+        }, 100); // Check every 100ms
+    });
+};
+
+// A memoized promise to avoid re-checking the environment on every call.
+let isProductionPromise: Promise<boolean> | null = null;
+const getIsProduction = (): Promise<boolean> => {
+    if (!isProductionPromise) {
+        isProductionPromise = checkIsProduction();
+    }
+    return isProductionPromise;
+};
+
 
 /**
  * The single, centralized authentication service for the application.
@@ -14,75 +51,57 @@ const isDevelopment = window.location.hostname === 'localhost';
 export const authService = {
     /**
      * Checks if the user is currently authenticated.
-     * In development, it checks sessionStorage for a mock flag.
+     * In dev/preview, it checks sessionStorage for a mock flag.
      * In production, it checks for a selected API key via the aistudio object.
      * @returns {Promise<boolean>} A promise that resolves to true if authenticated, false otherwise.
      */
     async isAuthenticated(): Promise<boolean> {
-        if (isDevelopment) {
-            // In dev mode, we consider the user "authenticated" if our mock flag is set.
+        const isProd = await getIsProduction();
+        if (!isProd) {
             return sessionStorage.getItem('mock_authenticated') === 'true';
         }
-
-        // In production, authentication depends on the AI Studio environment and a selected API key.
-        if (window.aistudio) {
-            try {
-                return await window.aistudio.hasSelectedApiKey();
-            } catch (e) {
-                console.error("Error checking for selected API key:", e);
-                return false;
-            }
-        }
         
-        // If not in dev and aistudio is not available, user is not authenticated.
-        return false;
+        // At this point, `window.aistudio` is guaranteed to exist.
+        return await window.aistudio.hasSelectedApiKey();
     },
 
     /**
      * Initiates the login process.
-     * In development, it simulates a successful login by setting a flag in sessionStorage.
-     * In production, it opens the AI Studio's key selection dialog.
+     * In dev/preview, it simulates a successful login by setting a flag in sessionStorage.
+     * In production, it opens the AI Studio key selection dialog.
      * @returns {Promise<void>} A promise that resolves when the login process is initiated.
      */
     async login(): Promise<void> {
-        if (isDevelopment) {
-            console.log("Development Mode: Simulating successful login.");
-            // Set a mock flag in session storage to persist the "logged in" state.
+        const isProd = await getIsProduction();
+        if (!isProd) {
+            console.log("Development/Preview Mode: Simulating successful login.");
             sessionStorage.setItem('mock_authenticated', 'true');
-            // Simulate a brief network delay for a more realistic UX.
+            // Simulate a small network delay for a better user experience.
             return new Promise(resolve => setTimeout(resolve, 300));
         }
 
-        // In production, we trigger the official login/key selection flow.
-        if (window.aistudio) {
-            try {
-                // This function prompts the user to both sign in with Google (if not already)
-                // and select an API key for the project.
-                await window.aistudio.openSelectKey();
-                return;
-            } catch (e) {
-                // The user may have closed the dialog, or an error occurred.
-                console.error("Error or user cancellation during API key selection:", e);
-                throw new Error('O processo de seleção de chave foi cancelado ou falhou.');
-            }
+        // At this point, `window.aistudio` is guaranteed to exist.
+        try {
+            await window.aistudio.openSelectKey();
+        } catch (e) {
+            console.error("Error opening AI Studio key selector:", e);
+            // Re-throw the error to be handled by the UI.
+            throw e;
         }
-        
-        // If the aistudio object isn't available in a non-dev environment, we cannot proceed.
-        throw new Error('Ambiente de AI Studio não detectado.');
     },
 
     /**
      * Logs the user out.
-     * In development, it simply removes the mock flag from sessionStorage.
-     * In production, there is no explicit logout function in aistudio; logging out
-     * is handled by changing the application's state.
+     * In dev/preview, it removes the mock flag from sessionStorage.
+     * In production, there's no explicit logout from the aistudio object;
+     * app state is simply reset.
      */
     async logout(): Promise<void> {
-        if (isDevelopment) {
+        const isProd = await getIsProduction();
+        if (!isProd) {
             sessionStorage.removeItem('mock_authenticated');
         }
-        // In the production environment, "logout" is managed by the App's state.
-        // There's no session to clear on the aistudio object itself.
+        // No explicit action needed for production logout, it's handled by app state.
         return Promise.resolve();
     }
 };
