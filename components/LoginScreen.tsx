@@ -1,5 +1,5 @@
-
 import React, { useState } from 'react';
+import { authService } from '../services/authService';
 
 interface LoginScreenProps {
     onLoginSuccess: () => void;
@@ -12,28 +12,21 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     const handleLogin = async () => {
         setIsLoading(true);
         setError(null);
-        if (window.aistudio) {
-            try {
-                // This function prompts for login AND key selection.
-                await window.aistudio.openSelectKey();
-                
-                // After the user interacts with the dialog, check if they successfully selected a key.
-                if (await window.aistudio.hasSelectedApiKey()) {
-                    onLoginSuccess();
-                } else {
-                    // User might have closed the dialog without selecting a key.
-                    setError('A seleção de chave de API é necessária para continuar. Por favor, tente novamente.');
-                }
-            } catch (e) {
-                console.error("Error during login/key selection:", e);
-                setError('Ocorreu um erro durante o login. Por favor, tente novamente.');
-            } finally {
-                setIsLoading(false);
-            }
-        } else {
-            setError('Ambiente de AI Studio não detectado.');
+
+        try {
+            await authService.login();
+            // After the login attempt (which might open a new window in production),
+            // we call onLoginSuccess to update the app's state.
+            // The main app component will re-verify the auth status.
+            onLoginSuccess();
+        } catch (e) {
+            const errorMessage = e instanceof Error ? e.message : 'Ocorreu um erro desconhecido.';
+            console.error("Error during login:", e);
+            setError(`Falha no login: ${errorMessage}`);
             setIsLoading(false);
         }
+        // Note: We don't necessarily set isLoading to false here on success,
+        // because the component will unmount and be replaced by the main app.
     };
 
     return (

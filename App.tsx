@@ -5,6 +5,7 @@ import { MobileModal } from './components/MobileModal';
 import { LoginScreen } from './components/LoginScreen';
 import { generateImage as apiGenerateImage } from './services/imageService';
 import { generateRestorePrompt } from './services/promptService';
+import { authService } from './services/authService';
 import { Mode, CreateFunction, EditFunction, ArtisticStyle, AspectRatio } from './types';
 import type { ImageFile } from './types';
 
@@ -43,19 +44,15 @@ const App: React.FC = () => {
 
     useEffect(() => {
         const checkAuthStatus = async () => {
-            if (window.aistudio) {
-                try {
-                    const hasKey = await window.aistudio.hasSelectedApiKey();
-                    setIsAuthenticated(hasKey);
-                } catch (e) {
-                    console.error("Error checking auth status:", e);
-                    setIsAuthenticated(false);
-                }
-            } else {
-                 // Fallback for environments where aistudio is not present
-                 setIsAuthenticated(false);
+            try {
+                const authStatus = await authService.isAuthenticated();
+                setIsAuthenticated(authStatus);
+            } catch (e) {
+                console.error("Error checking auth status:", e);
+                setIsAuthenticated(false);
+            } finally {
+                setIsAuthLoading(false);
             }
-            setIsAuthLoading(false);
         };
         checkAuthStatus();
     }, []);
@@ -64,12 +61,15 @@ const App: React.FC = () => {
         setIsAuthenticated(true);
     };
 
-    const handleLogout = () => {
+    const handleLogout = useCallback(() => {
+        authService.logout();
         setIsAuthenticated(false);
-    };
+    }, []);
 
     const handleGenerateImage = useCallback(async (promptOverride?: string) => {
-        if (window.aistudio && !(await window.aistudio.hasSelectedApiKey())) {
+        // Double-check authentication before generating
+        const isStillAuthenticated = await authService.isAuthenticated();
+        if (!isStillAuthenticated) {
             setError("Sua sessão expirou ou a chave de API é inválida. Por favor, entre novamente.");
             handleLogout();
             return;
@@ -119,7 +119,7 @@ const App: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [prompt, mode, activeCreateFunction, activeEditFunction, selectedStyle, aspectRatio, image1, image2, history, currentHistoryIndex, colorize]);
+    }, [prompt, mode, activeCreateFunction, activeEditFunction, selectedStyle, aspectRatio, image1, image2, history, currentHistoryIndex, colorize, handleLogout]);
 
     const handleEditCurrentImage = useCallback(() => {
         if (!generatedImage) return;
@@ -247,7 +247,6 @@ const App: React.FC = () => {
                     setRotation={setRotation}
                 />
             </div>
-            {/* Fix: Corrected typo from isModalopen to isModalOpen */}
             {isModalOpen && generatedImage && (
                  <MobileModal
                     generatedImage={generatedImage}
