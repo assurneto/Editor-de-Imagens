@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Modality } from '@google/genai';
 import { Mode, CreateFunction, EditFunction, ArtisticStyle, AspectRatio, styleOptions } from '../types';
 import type { ImageFile } from '../types';
@@ -37,8 +36,16 @@ const dataUrlToInlineData = (dataUrl: string) => {
  * @returns A promise that resolves to a data URL (base64) of the generated image.
  */
 export const generateImage = async (params: GenerateImageParams): Promise<string> => {
+    // This key is a fallback for development/preview environments where process.env.API_KEY is not set.
+    // In the production AI Studio environment, the key injected via process.env.API_KEY will always be used.
+    const apiKey = process.env.API_KEY || "AIzaSyDpmVLoUQH6CYHP0pvfHOEsCwNNExaYIgo";
+
+    if (!apiKey) {
+      throw new Error("Chave de API não encontrada. Configure-a para desenvolvimento ou execute no AI Studio.");
+    }
+    
     // Initialize the Google GenAI client inside the function to ensure the latest API key is used.
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey });
     
     console.log('Generating image with real API, params:', params);
     
